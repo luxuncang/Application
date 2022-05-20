@@ -191,7 +191,7 @@ class ShadowImage(InternalElement, ExternalElement, ShadowElement):
         self.is_flash = True
         return self
 
-    def fromExternal(cls, external_element) -> "InternalElement":
+    def fromExternal(self, external_element) -> "InternalElement":
         return external_element
 
     class Config:
@@ -212,16 +212,17 @@ class Image_LocalFile(ShadowImage):
             raise ValueError(
                 "you should give the 'method' for upload when you are out of the event receiver."
             )
-        if not self.is_flash:
-            return await app.uploadImage(
-                self.filepath.read_bytes(), methodd, return_external=True
-            )
-        else:
-            return FlashImage.fromExternal(
+        return (
+            FlashImage.fromExternal(
                 await app.uploadImage(
                     self.filepath.read_bytes(), methodd, return_external=True
                 )
             ).toExternal()
+            if self.is_flash
+            else await app.uploadImage(
+                self.filepath.read_bytes(), methodd, return_external=True
+            )
+        )
 
     async def getReal(self, method: UploadMethods) -> "Image":
         """从本 Shadow Element 中生成一真正的 Image 对象.
@@ -254,14 +255,17 @@ class Image_UnsafeBytes(ShadowImage):
             raise ValueError(
                 "you should give the 'method' for upload when you are out of the event receiver."
             )
-        if not self.is_flash:
-            return await app.uploadImage(
+        return (
+            FlashImage.fromExternal(
+                await app.uploadImage(
+                    self.image_bytes, methodd, return_external=True
+                )
+            ).toExternal()
+            if self.is_flash
+            else await app.uploadImage(
                 self.image_bytes, methodd, return_external=True
             )
-        else:
-            return FlashImage.fromExternal(
-                await app.uploadImage(self.image_bytes, methodd, return_external=True)
-            ).toExternal()
+        )
 
     async def getReal(self, method: UploadMethods) -> "Image":
         """从本 Shadow Element 中生成一真正的 Image 对象.
@@ -293,16 +297,17 @@ class Image_NetworkAddress(ShadowImage):
 
         async with app.session.get(self.url) as response:
             response.raise_for_status()
-            if not self.is_flash:
-                return await app.uploadImage(
-                    await response.read(), methodd, return_external=True
-                )
-            else:
-                return FlashImage.fromExternal(
+            return (
+                FlashImage.fromExternal(
                     await app.uploadImage(
                         await response.read(), methodd, return_external=True
                     )
                 ).toExternal()
+                if self.is_flash
+                else await app.uploadImage(
+                    await response.read(), methodd, return_external=True
+                )
+            )
 
     async def getReal(self, method: UploadMethods) -> "Image":
         """从本 Shadow Element 中生成一真正的 Image 对象.
@@ -335,10 +340,7 @@ class Image(InternalElement):
         if not values["imageId"]:
             return ImageType.Unknown
         if values["imageId"].startswith("/"):
-            if len(values["imageId"]) == 37:
-                return ImageType.Friend
-            else:
-                return ImageType.Temp
+            return ImageType.Friend if len(values["imageId"]) == 37 else ImageType.Temp
         elif values["imageId"].startswith("{") and values["imageId"].endswith(
             "}.mirai"
         ):
@@ -512,7 +514,7 @@ class Voice_LocalFile(ShadowElement, InternalElement, ExternalElement):
     def __init__(self, filepath: Path, method: Optional[UploadMethods] = None) -> None:
         super().__init__(filepath=filepath, method=method)
 
-    def fromExternal(cls, external_element) -> "InternalElement":
+    def fromExternal(self, external_element) -> "InternalElement":
         return external_element
 
     async def toExternal(self):
@@ -572,8 +574,7 @@ class Voice(InternalElement):
             return VoiceUploadType.Unknown
         if not values["voiceId"]:
             return VoiceUploadType.Unknown
-        if values["voiceId"]:
-            return VoiceUploadType.Group  # mirai 当前版本只支持群语音.
+        return VoiceUploadType.Group  # mirai 当前版本只支持群语音.
 
     def fromLocalFile(
         self, filepath: Union[str, Path], method: Optional[UploadMethods] = None

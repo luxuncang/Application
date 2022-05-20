@@ -100,10 +100,9 @@ def error_wrapper(network_action_callable: Callable):
                     raise invaild_session_exc
             except aiohttp.web_exceptions.HTTPNotFound:
                 raise NotSupportedVersion(
-                    "{}: this action does not supported because remote returned 404.".format(
-                        network_action_callable.__name__
-                    )
+                    f"{network_action_callable.__name__}: this action does not supported because remote returned 404."
                 )
+
             except aiohttp.web_exceptions.HTTPInternalServerError as e:
                 self.broadcast.postEvent(RemoteException())
                 self.logger.error(
@@ -117,17 +116,15 @@ def error_wrapper(network_action_callable: Callable):
             ):
 
                 self.logger.error(
-                    "ouch! it seems that we post in a wrong way for the action '{}', you should open a issue for Graia Application.".format(
-                        network_action_callable.__name__
-                    )
+                    f"ouch! it seems that we post in a wrong way for the action '{network_action_callable.__name__}', you should open a issue for Graia Application."
                 )
+
                 raise
             except aiohttp.web_exceptions.HTTPRequestTimeout:
                 self.logger.error(
-                    "timeout on {}, retry after 5 seconds...".format(
-                        network_action_callable.__name__
-                    )
+                    f"timeout on {network_action_callable.__name__}, retry after 5 seconds..."
                 )
+
                 await asyncio.sleep(5)
                 continue
 
@@ -756,12 +753,12 @@ class GraiaMiraiApplication:
             List[Union[GroupMessage, TempMessage, FriendMessage]]: 获取到的消息
         """
         async with self.session.get(
-            str(
-                URL(self.url_gen("fetchMessage")).with_query(
-                    {"verifyKey": self.connect_info.verifyKey, "count": count}
+                str(
+                    URL(self.url_gen("fetchMessage")).with_query(
+                        {"verifyKey": self.connect_info.verifyKey, "count": count}
+                    )
                 )
-            )
-        ) as response:
+            ) as response:
             response.raise_for_status()
             data = await response.json()
             raise_for_return_code(data)
@@ -769,7 +766,7 @@ class GraiaMiraiApplication:
             result = []
             for event in data["data"]:
                 if self.debug:
-                    self.logger.debug("http polling received: " + str(event))
+                    self.logger.debug(f"http polling received: {str(event)}")
                 try:
                     result.append(await self.auto_parse_by_type(event))
                 except ValueError:
@@ -792,12 +789,12 @@ class GraiaMiraiApplication:
         self, count: int = 10
     ) -> List[Union[GroupMessage, TempMessage, FriendMessage]]:
         async with self.session.get(
-            str(
-                URL(self.url_gen("fetchLatestMessage")).with_query(
-                    {"verifyKey": self.connect_info.verifyKey, "count": count}
+                str(
+                    URL(self.url_gen("fetchLatestMessage")).with_query(
+                        {"verifyKey": self.connect_info.verifyKey, "count": count}
+                    )
                 )
-            )
-        ) as response:
+            ) as response:
             response.raise_for_status()
             data = await response.json()
             raise_for_return_code(data)
@@ -805,7 +802,7 @@ class GraiaMiraiApplication:
             result = []
             for event in data["data"]:
                 if self.debug:
-                    self.logger.debug("http polling received: " + str(event))
+                    self.logger.debug(f"http polling received: {str(event)}")
                 try:
                     result.append(await self.auto_parse_by_type(event))
                 except ValueError:
@@ -828,12 +825,12 @@ class GraiaMiraiApplication:
         self, count: int = 10
     ) -> List[Union[GroupMessage, TempMessage, FriendMessage]]:
         async with self.session.get(
-            str(
-                URL(self.url_gen("peekMessage")).with_query(
-                    {"verifyKey": self.connect_info.verifyKey, "count": count}
+                str(
+                    URL(self.url_gen("peekMessage")).with_query(
+                        {"verifyKey": self.connect_info.verifyKey, "count": count}
+                    )
                 )
-            )
-        ) as response:
+            ) as response:
             response.raise_for_status()
             data = await response.json()
             raise_for_return_code(data)
@@ -841,7 +838,7 @@ class GraiaMiraiApplication:
             result = []
             for event in data["data"]:
                 if self.debug:
-                    self.logger.debug("http polling received: " + str(event))
+                    self.logger.debug(f"http polling received: {str(event)}")
                 try:
                     result.append(await self.auto_parse_by_type(event))
                 except ValueError:
@@ -864,12 +861,12 @@ class GraiaMiraiApplication:
         self, count: int = 10
     ) -> List[Union[GroupMessage, TempMessage, FriendMessage]]:
         async with self.session.get(
-            str(
-                URL(self.url_gen("peekLatestMessage")).with_query(
-                    {"verifyKey": self.connect_info.verifyKey, "count": count}
+                str(
+                    URL(self.url_gen("peekLatestMessage")).with_query(
+                        {"verifyKey": self.connect_info.verifyKey, "count": count}
+                    )
                 )
-            )
-        ) as response:
+            ) as response:
             response.raise_for_status()
             data = await response.json()
             raise_for_return_code(data)
@@ -877,7 +874,7 @@ class GraiaMiraiApplication:
             result = []
             for event in data["data"]:
                 if self.debug:
-                    self.logger.debug("http polling received: " + str(event))
+                    self.logger.debug(f"http polling received: {str(event)}")
                 try:
                     result.append(await self.auto_parse_by_type(event))
                 except ValueError:
@@ -1379,9 +1376,7 @@ class GraiaMiraiApplication:
             )
         event_type = Broadcast.findEvent(original_dict.get("type"))
         if not event_type:
-            raise ValueError(
-                "we cannot find a such event: {}".format(original_dict.get("type"))
-            )
+            raise ValueError(f'we cannot find a such event: {original_dict.get("type")}')
         return await run_always_await(
             event_type.parse_obj(
                 {k: v for k, v in original_dict.items() if k != "type"}
@@ -1398,8 +1393,6 @@ class GraiaMiraiApplication:
             except asyncio.CancelledError:
                 self.logger.debug("websocket ping: exiting....")
                 return
-            except:
-                self.logger.exception("websocket ping: ping failed")
             self.logger.debug("websocket ping: delay {0}s.".format(delay))
             await asyncio.sleep(delay)
 
@@ -1409,13 +1402,13 @@ class GraiaMiraiApplication:
         ping_task = None
 
         async with self.session.ws_connect(
-            str(
-                URL(self.url_gen("all")).with_query(
-                    {"verifyKey": self.connect_info.verifyKey}
-                )
-            ),
-            autoping=False,
-        ) as connection:
+                str(
+                    URL(self.url_gen("all")).with_query(
+                        {"verifyKey": self.connect_info.verifyKey}
+                    )
+                ),
+                autoping=False,
+            ) as connection:
             self.logger.info("websocket: connected")
 
             ping_task = self.broadcast.loop.create_task(self.ws_ping(connection))
@@ -1454,11 +1447,7 @@ class GraiaMiraiApplication:
                     elif ws_message.type is WSMsgType.PONG:
                         self.logger.debug("websocket: received pong from remote")
                     else:
-                        self.logger.debug(
-                            "detected a unknown message type: {}".format(
-                                ws_message.type
-                            )
-                        )
+                        self.logger.debug(f"detected a unknown message type: {ws_message.type}")
             finally:
                 if ping_task:
                     ping_task.cancel()
@@ -1572,9 +1561,9 @@ class GraiaMiraiApplication:
 
     def getFetching(self):
         return (
-            self.http_fetchmessage_poster
-            if not self.connect_info.websocket
-            else self.websocket_daemon
+            self.websocket_daemon
+            if self.connect_info.websocket
+            else self.http_fetchmessage_poster
         )
 
     async def shutdown(self):

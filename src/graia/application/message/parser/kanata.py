@@ -43,9 +43,7 @@ _T = TypeVar("_T")
 
 
 def origin_or_zero(origin: Optional[_T]) -> Union[_T, int]:
-    if origin is None:
-        return 0
-    return origin
+    return 0 if origin is None else origin
 
 
 class Kanata(AsyncDispatcherContextManager):
@@ -117,17 +115,15 @@ class Kanata(AsyncDispatcherContextManager):
             if isinstance(signature, (Arguments, PatternReceiver)):
                 if matching_recevier:  # 已经选中了一个...
                     if isinstance(signature, Arguments):
-                        if latest_index == signature_index:
-                            matching_recevier.content.extend(signature.content)
-                            continue
-                        else:
+                        if latest_index != signature_index:
                             raise TypeError("a unexpected case: match conflict")
+                        matching_recevier.content.extend(signature.content)
+                        continue
                     if isinstance(signature, PatternReceiver):
                         matching_recevier.content.append(signature)
                         continue
-                else:
-                    if isinstance(signature, PatternReceiver):
-                        signature = Arguments([signature])
+                elif isinstance(signature, PatternReceiver):
+                    signature = Arguments([signature])
                 matching_recevier = signature
                 start_index = reached_message_index
             elif isinstance(signature, NormalMatch):
@@ -227,20 +223,18 @@ class Kanata(AsyncDispatcherContextManager):
                         # 找遍了都没匹配到.
                         return
             latest_index = signature_index
-        else:
-            if matching_recevier:  # 到达了终点, 却仍然还要做点事的.
-                # 计算终点坐标.
-                text_index = None
+        if matching_recevier:  # 到达了终点, 却仍然还要做点事的.
+            latest_element = message_chain.__root__[-1]
+            text_index = (
+                len(latest_element.text)
+                if isinstance(latest_element, Plain)
+                else None
+            )
 
-                latest_element = message_chain.__root__[-1]
-                if isinstance(latest_element, Plain):
-                    text_index = len(latest_element.text)
-
-                stop_index = (len(message_chain.__root__), text_index)
-                match_result[matching_recevier] = (start_index, stop_index)
-            else:  # 如果不需要继续捕获消息作为参数, 但 Signature 已经无法指示 Message 的样式时, 判定本次匹配非法.
-                if reached_message_index < end_index:
-                    return
+            stop_index = (len(message_chain.__root__), text_index)
+            match_result[matching_recevier] = (start_index, stop_index)
+        elif reached_message_index < end_index:
+            return
 
         return match_result
 
@@ -279,7 +273,7 @@ class Kanata(AsyncDispatcherContextManager):
         result = {}
         for arguemnt_set, message_chain in mapping.items():
             length = len(arguemnt_set.content)
-            for index, receiver in enumerate(arguemnt_set.content):
+            for receiver in arguemnt_set.content:
                 if receiver.name in result:
                     raise ConflictItem("{0} is defined repeatedly".format(receiver))
                 if isinstance(receiver, RequireParam):
@@ -287,10 +281,7 @@ class Kanata(AsyncDispatcherContextManager):
                         return
                     result[receiver.name] = message_chain
                 elif isinstance(receiver, OptionalParam):
-                    if not message_chain.__root__:
-                        result[receiver.name] = None
-                    else:
-                        result[receiver.name] = message_chain
+                    result[receiver.name] = message_chain if message_chain.__root__ else None
                 break  # 还没来得及做长度匹配...
         return result
 
@@ -305,23 +296,25 @@ class Kanata(AsyncDispatcherContextManager):
         message_chain: MessageChain = (
             await interface.lookup_param("__kanata_messagechain__", MessageChain, None)
         ).exclude(Source)
-        if set([i.__class__ for i in message_chain.__root__]).intersection(
+        if {i.__class__ for i in message_chain.__root__}.intersection(
             BLOCKING_ELEMENTS
         ):
             raise ExecutionStop()
         if self.allow_quote and message_chain.has(Quote):
             # 0: Quote
             message_chain = message_chain[(1, None):]
-            if self.skip_one_at_in_quote and message_chain.__root__:
-                if message_chain.__root__[0].__class__ is At:
-                    message_chain = message_chain[(1, 1):]
+            if (
+                self.skip_one_at_in_quote
+                and message_chain.__root__
+                and message_chain.__root__[0].__class__ is At
+            ):
+                message_chain = message_chain[(1, 1):]
 
         mapping_result = self.detect_and_mapping(self.signature_list, message_chain)
         if mapping_result is not None:
             parsed_items = self.allocation(mapping_result)
-        else:
-            if self.stop_exec_if_fail:
-                raise ExecutionStop()
+        elif self.stop_exec_if_fail:
+            raise ExecutionStop()
         yield
         while current_status is StatusCodeEnum.DISPATCHING:
             result = None
@@ -331,8 +324,7 @@ class Kanata(AsyncDispatcherContextManager):
                 if parsed_items is not None:
                     item = parsed_items.get(interface.name, random_id)
                     result = Force(item) if item is not random_id else None
-                else:
-                    if self.stop_exec_if_fail:
-                        raise ExecutionStop()
+                elif self.stop_exec_if_fail:
+                    raise ExecutionStop()
 
             current_status, external = yield (ResponseCodeEnum.VALUE, result)

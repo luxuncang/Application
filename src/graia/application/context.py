@@ -22,18 +22,15 @@ def enter_message_send_context(method: UploadMethods):
 
 @contextmanager
 def enter_context(app=None, event_i=None):
-    t1 = None
-    t2 = None
     t3 = None
     t4 = None
 
+    t1 = None
     if app:
         t1 = application.set(app)
         t3 = event_loop.set(app.broadcast.loop)
         t4 = broadcast.set(app.broadcast)
-    if event_i:
-        t2 = event.set(event_i)
-
+    t2 = event.set(event_i) if event_i else None
     yield
     try:
         if t1:

@@ -8,7 +8,7 @@ class Arguments:
 
     @property
     def isGreed(self) -> bool:
-        return any([i.isGreed for i in self.content])
+        return any(i.isGreed for i in self.content)
 
     def __init__(self, content: List[PatternReceiver]) -> None:
         self.content = content
@@ -32,10 +32,9 @@ def merge_signature_chain_fullmatch(
                 result.append(FullMatch("".join(temp_l1)))
                 temp_l1.clear()
             result.append(i)
-    else:
-        if temp_l1:
-            result.append(FullMatch("".join(temp_l1)))
-            temp_l1.clear()
+    if temp_l1:
+        result.append(FullMatch("".join(temp_l1)))
+        temp_l1.clear()
 
     return type(chain)(result)
 
@@ -55,9 +54,8 @@ def merge_signature_chain(
                 result.append(Arguments(temp_l1))
                 temp_l1 = []
             result.append(i)
-    else:
-        if temp_l1:
-            result.append(Arguments(temp_l1))
-            temp_l1 = []
+    if temp_l1:
+        result.append(Arguments(temp_l1))
+        temp_l1 = []
 
     return type(chain)(result)

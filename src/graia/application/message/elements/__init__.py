@@ -14,7 +14,7 @@ class InternalElement(Element, abc.ABC):
         pass
 
     @abc.abstractclassmethod
-    def fromExternal(cls, external_element) -> "InternalElement":
+    def fromExternal(self, external_element) -> "InternalElement":
         """可以为异步方法"""
         pass
 

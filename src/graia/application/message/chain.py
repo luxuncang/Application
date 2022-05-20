@@ -128,17 +128,21 @@ class MessageChain(BaseModel):
             if isinstance(i, InternalElement):
                 handled_elements.append(i)
             elif isinstance(i, ExternalElement):
-                for ii in InternalElement.__subclasses__():
-                    if ii.__name__ == i.__class__.__name__:
-                        handled_elements.append(ii.fromExternal(i))
+                handled_elements.extend(
+                    ii.fromExternal(i)
+                    for ii in InternalElement.__subclasses__()
+                    if ii.__name__ == i.__class__.__name__
+                )
+
             elif isinstance(i, dict) and "type" in i:
                 for ii in ExternalElement.__subclasses__():
                     if ii.__name__ == i["type"]:
-                        for iii in InternalElement.__subclasses__():
-                            if iii.__name__ == i["type"]:
-                                handled_elements.append(
-                                    iii.fromExternal(ii.parse_obj(i))
-                                )
+                        handled_elements.extend(
+                            iii.fromExternal(ii.parse_obj(i))
+                            for iii in InternalElement.__subclasses__()
+                            if iii.__name__ == i["type"]
+                        )
+
         return cls(__root__=tuple(handled_elements))  # 默认是不可变型
 
     @property
@@ -192,18 +196,16 @@ class MessageChain(BaseModel):
         """
         return MessageChain(
             __root__=tuple(
-                [
-                    i
-                    for i in self.__root__
-                    if all(
-                        [
-                            isinstance(i, InternalElement),
-                            hasattr(i, "toExternal"),
-                            getattr(i.__class__, "toExternal")
-                            != InternalElement.toExternal,
-                        ]
-                    )
-                ]
+                i
+                for i in self.__root__
+                if all(
+                    [
+                        isinstance(i, InternalElement),
+                        hasattr(i, "toExternal"),
+                        getattr(i.__class__, "toExternal")
+                        != InternalElement.toExternal,
+                    ]
+                )
             )
         )
 
@@ -291,7 +293,7 @@ class MessageChain(BaseModel):
         Returns:
             MessageChain: 拼接结果
         """
-        return cls.create(sum([list(i.__root__) for i in chains], []))
+        return cls.create(sum((list(i.__root__) for i in chains), []))
 
     def plusWith(self, *chains: "MessageChain") -> "MessageChain":
         """在现有的基础上将另一消息链拼接到原来实例的尾部, 并生成, 返回新的实例.
@@ -299,7 +301,7 @@ class MessageChain(BaseModel):
         Returns:
             MessageChain: 拼接结果
         """
-        return self.create(sum([list(i.__root__) for i in chains], self.__root__))
+        return self.create(sum((list(i.__root__) for i in chains), self.__root__))
 
     def plus(self, *chains: "MessageChain") -> NoReturn:
         """在现有的基础上将另一消息链拼接到原来实例的尾部
@@ -345,21 +347,19 @@ class MessageChain(BaseModel):
         if item.start:
             first_slice = result[item.start[0] :]
             if item.start[1] is not None and first_slice:  # text slice
-                if not isinstance(first_slice[0], Plain):
-                    if not ignore_text_index:
-                        raise TypeError(
-                            "the sliced chain does not starts with a Plain: {}".format(
-                                first_slice[0]
-                            )
-                        )
-                    else:
-                        result = first_slice
-                else:
+                if isinstance(first_slice[0], Plain):
                     final_text = first_slice[0].text[item.start[1] :]
                     result = [
                         *([Plain(final_text)] if final_text else []),
                         *first_slice[1:],
                     ]
+                elif not ignore_text_index:
+                    raise TypeError(
+                        f"the sliced chain does not starts with a Plain: {first_slice[0]}"
+                    )
+
+                else:
+                    result = first_slice
             else:
                 result = first_slice
         if item.stop:
@@ -367,10 +367,9 @@ class MessageChain(BaseModel):
             if item.stop[1] is not None and first_slice:  # text slice
                 if not isinstance(first_slice[-1], Plain):
                     raise TypeError(
-                        "the sliced chain does not ends with a Plain: {}".format(
-                            first_slice[-1]
-                        )
+                        f"the sliced chain does not ends with a Plain: {first_slice[-1]}"
                     )
+
                 final_text = first_slice[-1].text[: item.stop[1]]
                 result = [
                     *first_slice[:-1],
@@ -415,8 +414,7 @@ class MessageChain(BaseModel):
         }
         result = []
         for match in regex.split(r"(\[mirai:.+?\])", string):
-            mirai = regex.fullmatch(r"\[mirai:(.+?)(:(.+?))\]", match)
-            if mirai:
+            if mirai := regex.fullmatch(r"\[mirai:(.+?)(:(.+?))\]", match):
                 # 容错：参数数量太少不行，太多可以
                 args = mirai.group(3).split(",")
                 result.append(PARSE_FUNCTIONS[mirai.group(1)](args))
@@ -443,10 +441,9 @@ class MessageChain(BaseModel):
                 result.append(i)
             else:
                 plain.append(i.text)
-        else:
-            if plain:
-                result.append(Plain("".join(plain)))
-                plain.clear()  # 清空缓存
+        if plain:
+            result.append(Plain("".join(plain)))
+            plain.clear()  # 清空缓存
         return MessageChain.create(type(self.__root__)(result))  # 维持 Mutable
 
     def exclude(self, *types: Type[Element]) -> MessageChain:
@@ -496,10 +493,9 @@ class MessageChain(BaseModel):
                         tmp.append(Plain(split_str))
             else:
                 tmp.append(element)
-        else:
-            if tmp:
-                result.append(MessageChain.create(tmp))
-                tmp = []
+        if tmp:
+            result.append(MessageChain.create(tmp))
+            tmp = []
         return result
 
     def asHypertext(self) -> "MessageChain":
@@ -558,7 +554,4 @@ class MessageChain(BaseModel):
 
         from .elements.internal import Plain
 
-        for i in self.get(Plain):
-            if string in i.text:
-                return True
-        return False
+        return any(string in i.text for i in self.get(Plain))

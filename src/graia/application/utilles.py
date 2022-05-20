@@ -109,12 +109,10 @@ code_exceptions_mapping = {
 def raise_for_return_code(code: Union[dict, int]):
     if isinstance(code, dict):
         code = code.get("code")
-        exception_code = code_exceptions_mapping.get(code)
-        if exception_code:
+        if exception_code := code_exceptions_mapping.get(code):
             raise exception_code
     elif isinstance(code, int):
-        exception_code = code_exceptions_mapping.get(code)
-        if exception_code:
+        if exception_code := code_exceptions_mapping.get(code):
             raise exception_code
 
 
@@ -178,9 +176,8 @@ class InsertGenerator:
             if self.insert_items:
                 yield self.insert_items.pop()
             yield i
-        else:
-            if self.insert_items:
-                yield from self.insert_items[::-1]
+        if self.insert_items:
+            yield from self.insert_items[::-1]
 
 
 class MultiUsageGenerator(InsertGenerator):
